@@ -1250,6 +1250,7 @@ public:
             ExtractRobotManipulators(probot, ias->getExtra_array(), articulated_system, bindings); // have to also read from the instance_articulated_system!
             ExtractRobotAttachedSensors(probot, articulated_system, bindings);
             ExtractRobotAttachedActuators(probot, articulated_system, bindings);
+            ExtractRobotHardLimts(probot, articulated_system, bindings);
         }
         _ExtractCollisionData(pbody,articulated_system,articulated_system->getExtra_array(),bindings.listInstanceLinkBindings);
         _ExtractExtraData(pbody,articulated_system->getExtra_array());
@@ -3181,6 +3182,67 @@ public:
             (*itjoint)->jointindex = jointindex++;
             (*itjoint)->dofindex = dofindex;
             dofindex += (*itjoint)->GetDOF();
+        }
+    }
+
+    void ExtractRobotHardLimts(RobotBasePtr probot, const domArticulated_systemRef as, const KinematicsSceneBindings& bindings)
+    {
+        for(size_t ie = 0; ie < as->getExtra_array().getCount(); ++ie) {
+            domExtraRef pextra = as->getExtra_array()[ie];
+            if( !pextra->getType() ) {
+                continue;
+            }
+            if( strcmp(pextra->getType(), "hard_limit") == 0 ) {
+                string name = pextra->getAttribute("name");
+                domTechniqueRef tec = _ExtractOpenRAVEProfile(pextra->getTechnique_array());
+                if( !!tec ) {
+                    KinBody::JointPtr pjoint;
+                    domJointRef pdomjoint;
+                    // bind joint
+                    for(size_t ic = 0; ic < tec->getContents().getCount(); ++ic) {
+                        daeElementRef pchild = tec->getContents()[ic];
+                        if( pchild->getElementName() == string("bind_actuator") ) {
+                            std::pair<KinBody::JointPtr, domJointRef> result = _getJointFromRef(pchild->getAttribute("joint").c_str(),as,probot, bindings);
+                            pjoint=result.first;
+                            pdomjoint = result.second;
+                            //RAVELOG_WARN_FORMAT("hardlimit joint name %s %s %d %d", name % pjoint->GetName() % !!pjoint% !!pdomjoint);
+                            if( !(!!pjoint && !!pdomjoint) ) {
+                                RAVELOG_WARN(str(boost::format("failed to find joint %s in hardlimit %s\n")%pchild->getAttribute("joint")%name));
+                            }
+                        }
+                    }
+                    // Get hard limits
+                    if( !!pjoint && !!pdomjoint ) {
+                        daeTArray<domAxis_constraintRef> vdomaxes = pdomjoint->getChildrenByType<domAxis_constraint>();
+                        if( find(probot->_vPassiveJoints.begin(), probot->_vPassiveJoints.end(), pjoint) == probot->_vPassiveJoints.end() ) { // don't allow passive joints!
+                            for(size_t ic = 0; ic < tec->getContents().getCount(); ++ic) {
+                                daeElementRef pchild = tec->getContents()[ic];
+                                if( pchild->getElementName() == string("hard_maxvel") ) {
+                                    dReal v = boost::lexical_cast<dReal>(pchild->getCharData());
+                                    for(size_t ic = 0; ic < vdomaxes.getCount(); ic++) {
+                                        pjoint->_info._vhardmaxvel[ic]=(pjoint->IsRevolute(ic) ? (PI/180.0f) : _mapJointUnits[pjoint][ic]) * v;
+                                    }
+                                }
+                                if( pchild->getElementName() == string("hard_maxaccel") ) {
+                                    dReal v = boost::lexical_cast<dReal>(pchild->getCharData());
+                                    for(size_t ic = 0; ic < vdomaxes.getCount(); ic++) {
+                                        pjoint->_info._vhardmaxaccel[ic]=(pjoint->IsRevolute(ic) ? (PI/180.0f) : _mapJointUnits[pjoint][ic]) * v;
+                                    }
+                                }
+                                if( pchild->getElementName() == string("hard_maxjerk") ) {
+                                    dReal v = boost::lexical_cast<dReal>(pchild->getCharData());
+                                    for(size_t ic = 0; ic < vdomaxes.getCount(); ic++) {
+                                        pjoint->_info._vhardmaxjerk[ic]=(pjoint->IsRevolute(ic) ? (PI/180.0f) : _mapJointUnits[pjoint][ic]) * v;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else {
+                    RAVELOG_WARN(str(boost::format("cannot create robot %s hardlimit %s\n")%probot->GetName()%name));
+                }
+            }
         }
     }
 

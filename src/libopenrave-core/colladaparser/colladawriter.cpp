@@ -1081,6 +1081,22 @@ private:
                 extrawriter->AddChild("viscous_friction")->SetCharData(boost::lexical_cast<std::string>(infoElectricMotor->viscous_friction));
             }
         }
+        FOREACHC(itjoint,pbody->GetJoints()) {
+            domExtraRef pextra = daeSafeCast<domExtra>(articulated_system_motion->add(COLLADA_ELEMENT_EXTRA));
+            pextra->setName(str(boost::format("hard_limit%d")%(*itjoint)->GetJointIndex()).c_str());
+            pextra->setType("hard_limit");
+            domTechniqueRef ptec = daeSafeCast<domTechnique>(pextra->add(COLLADA_ELEMENT_TECHNIQUE));
+            ptec->setProfile("OpenRAVE");
+            daeElementRef bind_actuator = ptec->add("bind_actuator");
+            bind_actuator->setAttribute("joint",str(boost::format("%sjoint%d")%kmodelid%(*itjoint)->GetJointIndex()).c_str());
+            daeElementRef hard_maxvel = ptec->add("hard_maxvel");
+            dReal fmult =((*itjoint)->IsRevolute(0) ? (180.0f/PI) : 1.0);
+            hard_maxvel->setCharData(boost::lexical_cast<std::string>((*itjoint)->GetInfo()._vhardmaxvel[0]*fmult));
+            daeElementRef hard_maxaccel = ptec->add("hard_maxaccel");
+            hard_maxaccel->setCharData(boost::lexical_cast<std::string>((*itjoint)->GetInfo()._vhardmaxaccel[0]*fmult));
+            daeElementRef hard_maxjerk = ptec->add("hard_maxjerk");
+            hard_maxjerk->setCharData(boost::lexical_cast<std::string>((*itjoint)->GetInfo()._vhardmaxjerk[0]*fmult));
+        }
 
         if( pbody->IsRobot() ) {
             RobotBasePtr probot = RaveInterfaceCast<RobotBase>(pbody);
