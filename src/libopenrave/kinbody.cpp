@@ -4867,7 +4867,7 @@ void KinBody::_PostprocessChangedParameters(uint32_t parameters)
         _ComputeInternalInformation();
     }
     // do not change hash if geometry changed!
-    if( !!(parameters & (Prop_LinkDynamics|Prop_LinkGeometry|Prop_JointMimic)) ) {
+    if( !!(parameters & (Prop_LinkDynamics|Prop_LinkGeometry|Prop_JointMimic|Prop_JointAccelerationVelocityTorqueLimits|Prop_JointLimits)) ) {
         __hashkinematics.resize(0);
     }
 
